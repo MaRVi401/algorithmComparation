@@ -10,6 +10,7 @@ const App = () => {
   const [stats, setStats] = useState({ visited: 0, pathLength: 0, time: 0 });
   const [isRunning, setIsRunning] = useState(false);
   const [isMouseDown, setIsMouseDown] = useState(false);
+  const [showError, setShowError] = useState(false);
 
   const containerRef = useRef();
 
@@ -117,6 +118,7 @@ const App = () => {
       }
     }
     setIsRunning(false);
+    setShowError(true);
   };
 
   const finishPath = async (node, fGrid, startT, vCount) => {
@@ -181,7 +183,7 @@ const App = () => {
       <main className="flex-1 flex overflow-hidden">
         <aside className="w-80 border-r border-slate-800 p-6 flex flex-col gap-8 bg-slate-900/20">
           <div className="sidebar-item">
-            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">1. Environment</label>
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">1. Category</label>
             <div className="grid grid-cols-2 gap-2">
               {['empty', 'random', 'barrier'].map(p => (
                 <button key={p} onClick={() => createInitialGrid(p)} className="py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded text-[11px] capitalize transition-all border border-slate-700/50">
@@ -193,7 +195,7 @@ const App = () => {
           </div>
 
           <div className="sidebar-item">
-            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">2. Core Engine</label>
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">2. Algorithm</label>
             <div className="space-y-3">
               <button onClick={() => runAlgorithm('Dijkstra')} disabled={isRunning} className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-cyan-900/20 transition-all active:scale-95">Run Dijkstra</button>
               <button onClick={() => runAlgorithm('A*')} disabled={isRunning} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-indigo-900/20 transition-all active:scale-95">Run A-Star</button>
@@ -201,15 +203,15 @@ const App = () => {
           </div>
 
           <div className="sidebar-item mt-4 pt-4 border-t border-slate-800">
-            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-3">3. Utilities</label>
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-3">3. Tools</label>
             <button onClick={clearPathOnly} disabled={isRunning || stats.visited === 0} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold border border-slate-700 disabled:opacity-30">
               Clear Results Only
             </button>
           </div>
 
           <div className="sidebar-item mt-auto p-4 bg-slate-900/50 rounded-lg border border-slate-800">
-            <p className="text-[11px] text-slate-400 leading-relaxed italic">
-              "Gunakan 'Clear Results Only' untuk membandingkan algoritma pada rintangan dinding yang sama."
+            <p className="text-[11px] text-slate-400 leading-relaxed italic text-center">
+              "Use 'Clear Results Only' to compare algorithms on the same wall obstacle.."
             </p>
           </div>
         </aside>
@@ -243,8 +245,8 @@ const App = () => {
                     }
                   }}
                   className={`node-cell w-5.5 h-5.5 transition-colors duration-500 relative ${node.isStart ? 'bg-emerald-500 z-20 shadow-[0_0_15px_rgba(16,185,129,0.5)]' :
-                      node.isEnd ? 'bg-rose-500 z-20 shadow-[0_0_15px_rgba(244,63,94,0.5)]' :
-                        node.isWall ? 'bg-slate-700' : 'bg-slate-950'
+                    node.isEnd ? 'bg-rose-500 z-20 shadow-[0_0_15px_rgba(244,63,94,0.5)]' :
+                      node.isWall ? 'bg-slate-700' : 'bg-slate-950'
                     }`}
                 >
                   {(node.isStart || node.isEnd) && <div className="absolute inset-0 animate-pulse bg-white/20 rounded-full scale-150"></div>}
@@ -257,6 +259,25 @@ const App = () => {
           </div>
         </section>
       </main>
+      {showError && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
+          <div className="bg-slate-900 border border-rose-500/30 p-8 rounded-2xl shadow-2xl shadow-rose-950/50 max-w-sm w-full text-center">
+            <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2 tracking-tight">No Path Found!</h3>
+            <p className="text-slate-400 text-sm mb-6 leading-relaxed">Target is unreachable. Please check the walls or barriers and try again.</p>
+            <button 
+              onClick={() => setShowError(false)}
+              className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-rose-900/30"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
