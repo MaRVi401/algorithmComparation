@@ -1,0 +1,271 @@
+import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+const ROWS = 20;
+const COLS = 40;
+
+const App = () => {
+  const [grid, setGrid] = useState([]);
+  const [stats, setStats] = useState({ visited: 0, pathLength: 0, time: 0 });
+  const [isRunning, setIsRunning] = useState(false);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+
+  const containerRef = useRef();
+
+  // --- Grid Management ---
+  const createInitialGrid = (pattern = 'empty') => {
+    if (isRunning) return;
+
+    // Reset animasi GSAP pada DOM
+    gsap.set(".node-cell", { clearProps: "all" });
+
+    const newGrid = [];
+    for (let r = 0; r < ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < COLS; c++) {
+        let isWall = false;
+        if (pattern === 'random') isWall = Math.random() < 0.25;
+        if (pattern === 'barrier' && c === 20 && r > 2 && r < 17) isWall = true;
+
+        row.push({
+          r, c,
+          isStart: r === 10 && c === 5,
+          isEnd: r === 10 && c === 35,
+          isWall: (r === 10 && c === 5) || (r === 10 && c === 35) ? false : isWall,
+          isVisited: false, isPath: false
+        });
+      }
+      newGrid.push(row);
+    }
+    setGrid(newGrid);
+    setStats({ visited: 0, pathLength: 0, time: 0 });
+  };
+
+  const clearPathOnly = () => {
+    if (isRunning) return;
+    gsap.set(".node-cell", { clearProps: "all" });
+    const cleanedGrid = grid.map(row => row.map(node => ({
+      ...node,
+      isVisited: false,
+      isPath: false
+    })));
+    setGrid(cleanedGrid);
+    setStats({ visited: 0, pathLength: 0, time: 0 });
+  };
+
+  useEffect(() => createInitialGrid(), []);
+
+  // --- Animations ---
+  useGSAP(() => {
+    gsap.from(".sidebar-item", { x: -30, opacity: 0, stagger: 0.1, duration: 0.8, ease: "power3.out" });
+    gsap.from(".grid-container", { scale: 0.95, opacity: 0, duration: 1, ease: "expo.out" });
+  }, { scope: containerRef });
+
+  // --- Logic Pathfinding ---
+  const runAlgorithm = async (type) => {
+    if (isRunning) return;
+    if (stats.visited > 0) clearPathOnly();
+
+    setIsRunning(true);
+    const startTime = performance.now();
+    let visitedCount = 0;
+
+    const startNode = { r: 10, c: 5, g: 0, f: 0, parent: null };
+    const endNode = { r: 10, c: 35 };
+    let openSet = [startNode];
+    const visitedSet = new Set();
+    const workingGrid = grid.map(row => row.map(node => ({ ...node, isVisited: false, isPath: false })));
+
+    while (openSet.length > 0) {
+      openSet.sort((a, b) => type === 'A*' ? a.f - b.f : a.g - b.g);
+      const current = openSet.shift();
+      const key = `${current.r}-${current.c}`;
+
+      if (visitedSet.has(key)) continue;
+      visitedSet.add(key);
+      visitedCount++;
+
+      if (current.r === endNode.r && current.c === endNode.c) {
+        await finishPath(current, workingGrid, startTime, visitedCount);
+        return;
+      }
+
+      if (!workingGrid[current.r][current.c].isStart) {
+        workingGrid[current.r][current.c].isVisited = true;
+        setGrid([...workingGrid]);
+
+        const color = type === 'A*' ? "#818cf8" : "#22d3ee";
+        gsap.to(`#node-${current.r}-${current.c}`, {
+          backgroundColor: color,
+          scale: 0.8,
+          borderRadius: "50%",
+          duration: 0.1
+        });
+      }
+
+      await new Promise(r => setTimeout(r, 5));
+
+      const neighbors = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+      for (const [dr, dc] of neighbors) {
+        const nr = current.r + dr, nc = current.c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !workingGrid[nr][nc].isWall) {
+          const g = current.g + 1;
+          const h = Math.abs(nr - endNode.r) + Math.abs(nc - endNode.c);
+          openSet.push({ r: nr, c: nc, g, f: g + h, parent: current });
+        }
+      }
+    }
+    setIsRunning(false);
+  };
+
+  const finishPath = async (node, fGrid, startT, vCount) => {
+    let temp = node;
+    const path = [];
+    while (temp) { path.push(temp); temp = temp.parent; }
+    for (const p of path.reverse()) {
+      fGrid[p.r][p.c].isPath = true;
+      setGrid([...fGrid]);
+      gsap.to(`#node-${p.r}-${p.c}`, {
+        backgroundColor: "#fbbf24",
+        scale: 1.1,
+        borderRadius: "4px",
+        zIndex: 10,
+        duration: 0.1
+      });
+      await new Promise(r => setTimeout(r, 15));
+    }
+    setStats({ visited: vCount, pathLength: path.length, time: (performance.now() - startT).toFixed(2) });
+    setIsRunning(false);
+  };
+
+  return (
+    <div ref={containerRef} className="h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden flex flex-col font-sans">
+
+      {/* Top Navbar */}
+      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md z-20 shadow-sm shadow-indigo-500/10">
+        <div className="flex items-center gap-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-10 h-10 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.3)] transition-transform hover:scale-110 duration-300">
+            <defs>
+              <linearGradient id="logo-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" style={{ stopColor: '#6366f1' }} />
+                <stop offset="100%" style={{ stopColor: '#22d3ee' }} />
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="32" cy="32" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="52" cy="52" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="12" cy="52" r="3" fill="#334155" opacity="0.3" />
+            <g fill="url(#logo-gradient)">
+              <circle cx="16" cy="48" r="5" />
+              <path d="M48,16 l-3,9 l-6,-3 z" />
+              <circle cx="48" cy="16" r="5" />
+            </g>
+            <path d="M16,48 C20,30 30,20 48,16" stroke="url(#logo-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" />
+          </svg>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white leading-none">
+              Pathfinding <span className="bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Labs</span>
+            </h1>
+            <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-1">Algorithm Research Journal</p>
+          </div>
+        </div>
+
+        <div className="flex gap-10">
+          <StatDisplay label="Visited" value={stats.visited} color="text-cyan-400" />
+          <StatDisplay label="Path" value={stats.pathLength} color="text-yellow-400" />
+          <StatDisplay label="Time" value={`${stats.time}ms`} color="text-emerald-400" />
+        </div>
+      </header>
+
+      <main className="flex-1 flex overflow-hidden">
+        <aside className="w-80 border-r border-slate-800 p-6 flex flex-col gap-8 bg-slate-900/20">
+          <div className="sidebar-item">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">1. Environment</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['empty', 'random', 'barrier'].map(p => (
+                <button key={p} onClick={() => createInitialGrid(p)} className="py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded text-[11px] capitalize transition-all border border-slate-700/50">
+                  {p}
+                </button>
+              ))}
+              <button onClick={() => createInitialGrid()} className="py-2 px-3 bg-rose-950/30 text-rose-400 hover:bg-rose-950/50 rounded text-[11px] transition-all border border-rose-900/20">Reset All</button>
+            </div>
+          </div>
+
+          <div className="sidebar-item">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">2. Core Engine</label>
+            <div className="space-y-3">
+              <button onClick={() => runAlgorithm('Dijkstra')} disabled={isRunning} className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-cyan-900/20 transition-all active:scale-95">Run Dijkstra</button>
+              <button onClick={() => runAlgorithm('A*')} disabled={isRunning} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-indigo-900/20 transition-all active:scale-95">Run A-Star</button>
+            </div>
+          </div>
+
+          <div className="sidebar-item mt-4 pt-4 border-t border-slate-800">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-3">3. Utilities</label>
+            <button onClick={clearPathOnly} disabled={isRunning || stats.visited === 0} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold border border-slate-700 disabled:opacity-30">
+              Clear Results Only
+            </button>
+          </div>
+
+          <div className="sidebar-item mt-auto p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <p className="text-[11px] text-slate-400 leading-relaxed italic">
+              "Gunakan 'Clear Results Only' untuk membandingkan algoritma pada rintangan dinding yang sama."
+            </p>
+          </div>
+        </aside>
+
+        {/* --- AREA VISUALISASI DENGAN LEGEND --- */}
+        <section className="flex-1 bg-slate-950 p-8 flex flex-col items-center justify-center relative">
+
+          {/* MASUKKAN KODE WARNA KETERANGAN DISINI */}
+          <div className="flex gap-6 mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Start</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-500 rounded-sm"></div> Target</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-700 rounded-sm"></div> Wall</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-cyan-400 rounded-sm"></div> Dijkstra</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-400 rounded-sm"></div> A*</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-yellow-400 rounded-sm"></div> Path</div>
+          </div>
+
+          <div className="grid-container relative z-10 shadow-2xl">
+            <div className="grid gap-px bg-slate-800 p-px rounded"
+              style={{ gridTemplateColumns: `repeat(${COLS}, 22px)` }}
+              onMouseDown={() => setIsMouseDown(true)}
+              onMouseUp={() => setIsMouseDown(false)}>
+              {grid.map((row, r) => row.map((node, c) => (
+                <div
+                  key={`${r}-${c}`} id={`node-${r}-${c}`}
+                  onMouseEnter={() => {
+                    if (isMouseDown && !isRunning && !node.isStart && !node.isEnd) {
+                      const newGrid = [...grid];
+                      newGrid[r][c].isWall = true;
+                      setGrid(newGrid);
+                    }
+                  }}
+                  className={`node-cell w-5.5 h-5.5 transition-colors duration-500 relative ${node.isStart ? 'bg-emerald-500 z-20 shadow-[0_0_15px_rgba(16,185,129,0.5)]' :
+                      node.isEnd ? 'bg-rose-500 z-20 shadow-[0_0_15px_rgba(244,63,94,0.5)]' :
+                        node.isWall ? 'bg-slate-700' : 'bg-slate-950'
+                    }`}
+                >
+                  {(node.isStart || node.isEnd) && <div className="absolute inset-0 animate-pulse bg-white/20 rounded-full scale-150"></div>}
+                </div>
+              )))}
+            </div>
+          </div>
+          <div className="absolute inset-0 opacity-10 pointer-events-none"
+            style={{ backgroundImage: 'radial-gradient(#4f46e5 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }}>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
+
+const StatDisplay = ({ label, value, color }) => (
+  <div className="text-center min-w-17.5">
+    <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{label}</p>
+    <p className={`text-xl font-mono font-bold ${color}`}>{value}</p>
+  </div>
+);
+
+export default App;
