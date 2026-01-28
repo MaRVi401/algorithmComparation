@@ -5,7 +5,7 @@ import { useGSAP } from '@gsap/react';
 // --- Konstanta Global ---
 const ROWS = 20;
 const COLS = 40;
-const TOTAL_EPISODES = 50000;
+const TOTAL_EPISODES = 1000000;
 
 const App = () => {
   const [grid, setGrid] = useState([]);
@@ -25,6 +25,7 @@ const App = () => {
 
   const containerRef = useRef();
   const qTableRef = useRef({});
+  const stopTrainingRef = useRef(false);
 
   // --- Grid Management ---
   const createInitialGrid = (pattern = 'empty') => {
@@ -79,6 +80,11 @@ const App = () => {
     gsap.from(".grid-container", { scale: 0.95, opacity: 0, duration: 1, ease: "expo.out" });
   }, { scope: containerRef });
 
+  // --- Fungsi Cancel ---
+  const handleCancel = () => {
+    stopTrainingRef.current = true;
+  };
+
   // --- Logic Pathfinding ---
   const runAlgorithm = async (type) => {
     if (isRunning) return;
@@ -92,6 +98,7 @@ const App = () => {
     if (type === 'Q-Learning') {
       setProgress(0.1);
       setIsTrainingComplete(false);
+      stopTrainingRef.current = false; // Reset sinyal stop
 
       const ALPHA = 0.2;
       const GAMMA = 0.99;
@@ -110,7 +117,15 @@ const App = () => {
       let goalReachedCount = 0;
       const getDist = (r, c) => Math.abs(r - endNode.r) + Math.abs(c - endNode.c);
 
+      // --- TRAINING PHASE ASYNC ---
       for (let i = 0; i < TOTAL_EPISODES; i++) {
+        // CEK SINYAL CANCEL
+        if (stopTrainingRef.current) {
+          setIsRunning(false);
+          setProgress(0);
+          return;
+        }
+
         let curr = { r: 10, c: 5 };
         let steps = 0;
         epsilon = Math.max(0.1, epsilon * 0.9998);
@@ -166,10 +181,11 @@ const App = () => {
 
       qTableRef.current = qTable;
       setProgress(100);
-      setStats(prev => ({ ...prev, visited: visitedSet.size })); // Update visited untuk tombol Clear
+      setStats(prev => ({ ...prev, visited: visitedSet.size }));
       setIsTrainingComplete(true);
 
     } else {
+      // --- DIJKSTRA & A* LOGIC ---
       setProgress(0);
       let visitedCount = 0;
       const startNode = { r: 10, c: 5, g: 0, f: 0, parent: null };
@@ -291,7 +307,7 @@ const App = () => {
             <path d="M16,48 C20,30 30,20 48,16" stroke="url(#logo-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" />
           </svg>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white leading-none">
+            <h1 className="text-xl font-bold tracking-tight text-white leading-none italic uppercase">
               Pathfinding <span className="bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Labs</span>
             </h1>
             <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-1">Algorithm Research Journal</p>
@@ -301,12 +317,16 @@ const App = () => {
         <div className="flex gap-15">
           <StatDisplay label="States Explored" value={stats.visited} color="text-cyan-400" />
           <StatDisplay label="Path" value={stats.pathLength} color="text-yellow-400" />
-          <StatDisplay label="Time" value={`${stats.time}ms`} color="text-emerald-400" />
+          <StatDisplay
+            label="Time"
+            value={<>{stats.time}<span className="text-sm lowercase ml-1">ms</span></>}
+            color="text-emerald-400"
+          />
         </div>
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        {/* --- SIDEBAR (Z-30) --- */}
+        {/* --- SIDEBAR --- */}
         <aside className="w-80 border-r border-slate-800 p-6 flex flex-col gap-8 bg-slate-900/20 z-30">
           <div className="sidebar-item">
             <label className="text-[10px] font-black uppercase text-slate-500 mb-4 block tracking-widest">1. Category</label>
@@ -347,7 +367,6 @@ const App = () => {
         {/* --- MAIN AREA --- */}
         <section className="flex-1 bg-slate-950 p-8 flex flex-col items-center justify-center relative">
 
-          {/* --- LEGEND (Z-30) --- */}
           <div className="flex flex-wrap justify-center gap-6 mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800 z-30 relative">
             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Start</div>
             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-500 rounded-sm"></div> Target</div>
@@ -355,7 +374,6 @@ const App = () => {
             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-yellow-400 rounded-sm shadow-[0_0_8px_#fbbf24]"></div> Path</div>
           </div>
 
-          {/* --- GRID (Z-10) --- */}
           <div className="grid-container relative z-10 shadow-2xl rounded overflow-hidden">
             <div className="grid gap-px bg-slate-800 p-px"
               style={{ gridTemplateColumns: `repeat(${COLS}, 22px)` }}
@@ -378,24 +396,28 @@ const App = () => {
 
                   <div className="flex justify-between items-end mb-6 text-left">
                     <div>
-                      <h2 className="text-2xl font-black text-white italic tracking-tight uppercase">Training <span className="text-purple-500">Brain...</span></h2>
+                      <h2 className="text-2xl font-black text-white italic tracking-tight uppercase">Training <span className="text-purple-500">Model...</span></h2>
                       <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Episode {trainingData.episode.toLocaleString()} / {TOTAL_EPISODES.toLocaleString()}</p>
                     </div>
                     <div className="text-3xl font-mono font-black text-purple-400">{progress}%</div>
                   </div>
 
                   <div className="relative w-full bg-slate-800 h-4 rounded-full border border-slate-700 p-1 mb-8">
-                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 transition-all duration-300 shadow-[0_0_20px_#a855f760]" style={{ width: `${progress}%` }}></div>
+                    <div className="h-full rounded-full bg-linear-to-r from-indigo-500 via-purple-500 to-cyan-400 transition-all duration-300 shadow-[0_0_20px_#a855f760]" style={{ width: `${progress}%` }}></div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-8 text-left font-bold italic tracking-tighter">
+                  <div className="grid grid-cols-2 gap-4 mb-8 text-left font-bold tracking-tighter">
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                      <p className="text-[9px] uppercase text-slate-500 mb-1 tracking-widest">Exploration (ε)</p>
-                      <p className="text-lg font-mono text-cyan-400">{(trainingData.epsilon * 100).toFixed(1)}%</p>
+                      <p className="text-[9px] uppercase text-slate-500 mb-1 tracking-widest font-black">
+                        Exploration <span className="normal-case font-medium text-[11px]">(ε)</span>
+                      </p>
+                      <p className="text-lg font-mono font-bold text-cyan-400">
+                        {(trainingData.epsilon * 100).toFixed(1)}%
+                      </p>
                     </div>
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                      <p className="text-[9px] uppercase text-slate-500 mb-1 tracking-widest">Goals Found</p>
-                      <p className="text-lg font-mono text-emerald-400">{trainingData.success}</p>
+                      <p className="text-[9px] uppercase text-slate-500 mb-1 tracking-widest font-black">Goals Found</p>
+                      <p className="text-lg font-mono font-bold text-emerald-400">{trainingData.success}</p>
                     </div>
                   </div>
 
@@ -405,19 +427,27 @@ const App = () => {
                         onClick={handleVisualizeML}
                         className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-black text-xs tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                       >
-                        Lihat Jalur Hasil Latihan
+                        View Training Results Track
                       </button>
                       <button
                         onClick={() => { setIsRunning(false); setProgress(0); }}
                         className="w-full py-2 text-[10px] text-slate-500 font-bold tracking-widest hover:text-rose-400 transition-colors"
                       >
-                        Batal / Reset
+                        Cancel Training
                       </button>
                     </div>
                   ) : (
-                    <p className="mt-8 text-center text-[10px] text-slate-500 italic animate-pulse tracking-wide">
-                      Agent is exploring the environment and optimizing the Q-Table...
-                    </p>
+                    <div className="mt-8 flex flex-col items-center gap-4">
+                      <p className="text-[10px] text-slate-500 italic animate-pulse tracking-wide font-medium">
+                        Agent is exploring the environment and optimizing the Q-Table...
+                      </p>
+                      <button
+                        onClick={handleCancel}
+                        className="px-6 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] font-bold uppercase tracking-widest rounded-full border border-rose-500/30 transition-all active:scale-95"
+                      >
+                        Cancel Training
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -428,11 +458,11 @@ const App = () => {
 
       {/* Error Boundary */}
       {showError && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
+        <div className="absolute inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
           <div className="bg-slate-900 border border-rose-500/30 p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center">
             <h3 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">No Path Found!</h3>
             <p className="text-slate-400 text-sm mb-8 leading-relaxed font-medium">Model gagal menemukan jalur. Coba reset dinding atau jalankan ulang training.</p>
-            <button onClick={() => setShowError(false)} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black transition-all shadow-lg shadow-rose-900/30 uppercase tracking-widest text-xs">Close</button>
+            <button onClick={() => setShowError(false)} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black transition-all shadow-lg shadow-rose-900/30 uppercase tracking-widest text-xs">Close</button>
           </div>
         </div>
       )}
@@ -441,7 +471,7 @@ const App = () => {
 };
 
 const StatDisplay = ({ label, value, color }) => (
-  <div className="text-center min-w-17.5 italic uppercase tracking-tighter">
+  <div className="text-center min-w-17.5 uppercase tracking-tighter">
     <p className="text-[10px] text-slate-500 font-black mb-1">{label}</p>
     <p className={`text-xl font-mono font-black ${color}`}>{value}</p>
   </div>
