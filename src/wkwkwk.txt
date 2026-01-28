@@ -1,0 +1,414 @@
+import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+const ROWS = 20;
+const COLS = 40;
+
+const App = () => {
+  const [grid, setGrid] = useState([]);
+  const [stats, setStats] = useState({ visited: 0, pathLength: 0, time: 0 });
+  const [isRunning, setIsRunning] = useState(false);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [showError, setShowError] = useState(false);
+
+  const containerRef = useRef();
+
+  // --- Grid Management ---
+  const createInitialGrid = (pattern = 'empty') => {
+    if (isRunning) return;
+
+    // Reset animasi GSAP pada DOM
+    gsap.set(".node-cell", { clearProps: "all" });
+
+    const newGrid = [];
+    for (let r = 0; r < ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < COLS; c++) {
+        let isWall = false;
+        if (pattern === 'random') isWall = Math.random() < 0.25;
+        if (pattern === 'barrier' && c === 20 && r > 2 && r < 17) isWall = true;
+
+        row.push({
+          r, c,
+          isStart: r === 10 && c === 5,
+          isEnd: r === 10 && c === 35,
+          isWall: (r === 10 && c === 5) || (r === 10 && c === 35) ? false : isWall,
+          isVisited: false, isPath: false
+        });
+      }
+      newGrid.push(row);
+    }
+    setGrid(newGrid);
+    setStats({ visited: 0, pathLength: 0, time: 0 });
+  };
+
+  const clearPathOnly = () => {
+    if (isRunning) return;
+    gsap.set(".node-cell", { clearProps: "all" });
+    const cleanedGrid = grid.map(row => row.map(node => ({
+      ...node,
+      isVisited: false,
+      isPath: false
+    })));
+    setGrid(cleanedGrid);
+    setStats({ visited: 0, pathLength: 0, time: 0 });
+  };
+
+  useEffect(() => createInitialGrid(), []);
+
+  // --- Animations ---
+  useGSAP(() => {
+    gsap.from(".sidebar-item", { x: -30, opacity: 0, stagger: 0.1, duration: 0.8, ease: "power3.out" });
+    gsap.from(".grid-container", { scale: 0.95, opacity: 0, duration: 1, ease: "expo.out" });
+  }, { scope: containerRef });
+
+  // --- Logic Pathfinding & Machine Learning ---
+  const runAlgorithm = async (type) => {
+    if (isRunning) return;
+    if (stats.visited > 0) clearPathOnly();
+
+    setIsRunning(true);
+    const startTime = performance.now();
+    const endNode = { r: 10, c: 35 };
+    const workingGrid = grid.map(row => row.map(node => ({ ...node, isVisited: false, isPath: false })));
+
+    if (type === 'Q-Learning') {
+      const ALPHA = 0.3;      // Learning rate lebih agresif
+      const GAMMA = 0.9;
+      let epsilon = 0.8;      // Mulai dengan eksplorasi sangat tinggi
+      const EPISODES = 5000;  // Untuk grid 20x40, butuh usaha ekstra
+      const MAX_STEPS = 600;  // Langkah maksimal per episode
+
+      const qTable = {};
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          qTable[`${r}-${c}`] = [0, 0, 0, 0];
+        }
+      }
+
+      const visitedSet = new Set();
+      let goalReachedCount = 0;
+
+      // Fungsi pembantu untuk menghitung jarak ke target
+      const getDist = (r, c) => Math.abs(r - endNode.r) + Math.abs(c - endNode.c);
+
+      // --- TRAINING PHASE ---
+      for (let i = 0; i < EPISODES; i++) {
+        let curr = { r: 10, c: 5 };
+        let steps = 0;
+
+        // Epsilon Decay: Semakin lama semakin jarang gerak acak
+        epsilon = Math.max(0.1, epsilon * 0.9995);
+
+        while (!(curr.r === endNode.r && curr.c === endNode.c) && steps < MAX_STEPS) {
+          const stateKey = `${curr.r}-${curr.c}`;
+          visitedSet.add(stateKey);
+
+          let action;
+          // Epsilon-Greedy
+          if (Math.random() < epsilon) {
+            action = Math.floor(Math.random() * 4);
+          } else {
+            const values = qTable[stateKey];
+            // Jika semua nilai Q sama (0), pilih acak daripada selalu pilih index 0
+            if (values.every(v => v === values[0])) {
+              action = Math.floor(Math.random() * 4);
+            } else {
+              action = values.indexOf(Math.max(...values));
+            }
+          }
+
+          let nextR = curr.r, nextC = curr.c;
+          if (action === 0) nextR--;
+          else if (action === 1) nextR++;
+          else if (action === 2) nextC--;
+          else if (action === 3) nextC++;
+
+          let reward = -1; // Biaya standar setiap langkah
+
+          // 1. CEK BATAS & DINDING
+          if (nextR < 0 || nextR >= ROWS || nextC < 0 || nextC >= COLS || workingGrid[nextR][nextC].isWall) {
+            reward = -15;
+            qTable[stateKey][action] += ALPHA * (reward - qTable[stateKey][action]);
+            break;
+          }
+
+          // 2. REWARD SHAPING (PENTING): Beri bonus kecil jika mendekati target
+          const currentDist = getDist(curr.r, curr.c);
+          const nextDist = getDist(nextR, nextC);
+          if (nextDist < currentDist) reward += 2; // Mendekat = Bonus
+          else reward -= 2; // Menjauh = Hukuman kecil
+
+          // 3. SAMPAI TARGET
+          if (nextR === endNode.r && nextC === endNode.c) {
+            reward = 500; // Bonus raksasa
+            goalReachedCount++;
+          }
+
+          // UPDATE Q-VALUE (Bellman Equation)
+          const nextStateKey = `${nextR}-${nextC}`;
+          const maxNextQ = Math.max(...qTable[nextStateKey]);
+          qTable[stateKey][action] += ALPHA * (reward + GAMMA * maxNextQ - qTable[stateKey][action]);
+
+          curr = { r: nextR, c: nextC };
+          steps++;
+        }
+      }
+
+      // --- INFERENCE PHASE (Ambil Jalur Terbaik) ---
+      let temp = { r: 10, c: 5 };
+      const path = [];
+      const pathSet = new Set();
+
+      while (!(temp.r === endNode.r && temp.c === endNode.c) && path.length < ROWS * COLS) {
+        const stateKey = `${temp.r}-${temp.c}`;
+        if (pathSet.has(stateKey)) break;
+        pathSet.add(stateKey);
+        path.push(temp);
+
+        const values = qTable[stateKey];
+        // Jika agen tidak pernah belajar di titik ini, dia akan stuck
+        if (values.every(v => v === 0)) break;
+
+        const bestAction = values.indexOf(Math.max(...values));
+        if (bestAction === 0) temp = { r: temp.r - 1, c: temp.c };
+        else if (bestAction === 1) temp = { r: temp.r + 1, c: temp.c };
+        else if (bestAction === 2) temp = { r: temp.r, c: temp.c - 1 };
+        else if (bestAction === 3) temp = { r: temp.r, c: temp.c + 1 };
+      }
+
+      if (temp.r === endNode.r && temp.c === endNode.c) {
+        path.push(temp);
+        await finishPath(null, workingGrid, startTime, visitedSet.size, path);
+      } else {
+        console.log("Goal reached during training:", goalReachedCount, "times");
+        setIsRunning(false);
+        setShowError(true);
+      }
+    } else {
+      // --- DIJKSTRA & A* LOGIC ---
+      let visitedCount = 0;
+      const startNode = { r: 10, c: 5, g: 0, f: 0, parent: null };
+      let openSet = [startNode];
+      const visitedSet = new Set();
+
+      while (openSet.length > 0) {
+        openSet.sort((a, b) => type === 'A*' ? a.f - b.f : a.g - b.g);
+        const current = openSet.shift();
+        const key = `${current.r}-${current.c}`;
+
+        if (visitedSet.has(key)) continue;
+        visitedSet.add(key);
+        visitedCount++;
+
+        if (current.r === endNode.r && current.c === endNode.c) {
+          await finishPath(current, workingGrid, startTime, visitedCount);
+          return;
+        }
+
+        if (!workingGrid[current.r][current.c].isStart) {
+          workingGrid[current.r][current.c].isVisited = true;
+          setGrid([...workingGrid]);
+
+          const color = type === 'A*' ? "#818cf8" : "#22d3ee";
+          gsap.to(`#node-${current.r}-${current.c}`, {
+            backgroundColor: color,
+            scale: 0.8,
+            borderRadius: "50%",
+            duration: 0.1
+          });
+        }
+
+        await new Promise(r => setTimeout(r, 5));
+
+        const neighbors = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (const [dr, dc] of neighbors) {
+          const nr = current.r + dr, nc = current.c + dc;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !workingGrid[nr][nc].isWall) {
+            const g = current.g + 1;
+            const h = Math.abs(nr - endNode.r) + Math.abs(nc - endNode.c);
+            openSet.push({ r: nr, c: nc, g, f: g + h, parent: current });
+          }
+        }
+      }
+      setIsRunning(false);
+      setShowError(true);
+    }
+  };
+
+  const finishPath = async (node, fGrid, startT, vCount, mlPath = null) => {
+    let path = [];
+    if (mlPath) {
+      path = mlPath;
+    } else {
+      let temp = node;
+      while (temp) { path.push(temp); temp = temp.parent; }
+      path.reverse();
+    }
+
+    for (const p of path) {
+      fGrid[p.r][p.c].isPath = true;
+      setGrid([...fGrid]);
+      gsap.to(`#node-${p.r}-${p.c}`, {
+        backgroundColor: "#fbbf24",
+        scale: 1.1,
+        borderRadius: "4px",
+        zIndex: 10,
+        duration: 0.1
+      });
+      await new Promise(r => setTimeout(r, 15));
+    }
+    setStats({ visited: vCount, pathLength: path.length, time: (performance.now() - startT).toFixed(2) });
+    setIsRunning(false);
+  };
+
+  return (
+    <div ref={containerRef} className="h-screen w-screen bg-slate-950 text-slate-200 overflow-hidden flex flex-col font-sans">
+
+      {/* Top Navbar */}
+      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md z-20 shadow-sm shadow-indigo-500/10">
+        <div className="flex items-center gap-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-10 h-10 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.3)] transition-transform hover:scale-110 duration-300">
+            <defs>
+              <linearGradient id="logo-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" style={{ stopColor: '#6366f1' }} />
+                <stop offset="100%" style={{ stopColor: '#22d3ee' }} />
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="32" cy="32" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="52" cy="52" r="3" fill="#334155" opacity="0.3" />
+            <circle cx="12" cy="52" r="3" fill="#334155" opacity="0.3" />
+            <g fill="url(#logo-gradient)">
+              <circle cx="16" cy="48" r="5" />
+              <path d="M48,16 l-3,9 l-6,-3 z" />
+              <circle cx="48" cy="16" r="5" />
+            </g>
+            <path d="M16,48 C20,30 30,20 48,16" stroke="url(#logo-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" />
+          </svg>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white leading-none">
+              Pathfinding <span className="bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Labs</span>
+            </h1>
+            <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-1">Algorithm Research Journal</p>
+          </div>
+        </div>
+
+        <div className="flex gap-10">
+          <StatDisplay label="States Explored" value={stats.visited} color="text-cyan-400" />
+          <StatDisplay label="Path" value={stats.pathLength} color="text-yellow-400" />
+          <StatDisplay label="Time" value={`${stats.time}ms`} color="text-emerald-400" />
+        </div>
+      </header>
+
+      <main className="flex-1 flex overflow-hidden">
+        <aside className="w-80 border-r border-slate-800 p-6 flex flex-col gap-8 bg-slate-900/20">
+          <div className="sidebar-item">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">1. Category</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['empty', 'random', 'barrier'].map(p => (
+                <button key={p} onClick={() => createInitialGrid(p)} className="py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded text-[11px] capitalize transition-all border border-slate-700/50">
+                  {p}
+                </button>
+              ))}
+              <button onClick={() => createInitialGrid()} className="py-2 px-3 bg-rose-950/30 text-rose-400 hover:bg-rose-950/50 rounded text-[11px] transition-all border border-rose-900/20">Reset All</button>
+            </div>
+          </div>
+
+          <div className="sidebar-item">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-4">2. Algorithm</label>
+            <div className="space-y-3">
+              <button onClick={() => runAlgorithm('Dijkstra')} disabled={isRunning} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-cyan-900/20 transition-all active:scale-95">Run Dijkstra</button>
+              <button onClick={() => runAlgorithm('A*')} disabled={isRunning} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-indigo-900/20 transition-all active:scale-95">Run A-Star</button>
+              <button onClick={() => runAlgorithm('Q-Learning')} disabled={isRunning} className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-30 rounded-xl font-bold text-sm shadow-lg shadow-purple-900/20 transition-all active:scale-95 border-2 border-purple-400/30">Run Q-Learning (ML)</button>
+            </div>
+          </div>
+
+          <div className="sidebar-item mt-4 pt-4 border-t border-slate-800">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block mb-3">3. Tools</label>
+            <button onClick={clearPathOnly} disabled={isRunning || stats.visited === 0} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold border border-slate-700 disabled:opacity-30">
+              Clear Results Only
+            </button>
+          </div>
+
+          <div className="sidebar-item mt-auto p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <p className="text-[11px] text-slate-400 leading-relaxed italic text-center">
+              "Machine Learning (Q-Learning) learns through trials and errors to find the path."
+            </p>
+          </div>
+        </aside>
+
+        <section className="flex-1 bg-slate-950 p-8 flex flex-col items-center justify-center relative">
+
+          <div className="flex gap-6 mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Start</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-500 rounded-sm"></div> Target</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-700 rounded-sm"></div> Wall</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-cyan-400 rounded-sm"></div> Dijkstra</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-400 rounded-sm"></div> A*</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-purple-500 rounded-sm"></div> Q-Learning</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-yellow-400 rounded-sm"></div> Path</div>
+          </div>
+
+          <div className="grid-container relative z-10 shadow-2xl">
+            <div className="grid gap-px bg-slate-800 p-px rounded"
+              style={{ gridTemplateColumns: `repeat(${COLS}, 22px)` }}
+              onMouseDown={() => setIsMouseDown(true)}
+              onMouseUp={() => setIsMouseDown(false)}>
+              {grid.map((row, r) => row.map((node, c) => (
+                <div
+                  key={`${r}-${c}`} id={`node-${r}-${c}`}
+                  onMouseEnter={() => {
+                    if (isMouseDown && !isRunning && !node.isStart && !node.isEnd) {
+                      const newGrid = [...grid];
+                      newGrid[r][c].isWall = true;
+                      setGrid(newGrid);
+                    }
+                  }}
+                  className={`node-cell w-5.5 h-5.5 transition-colors duration-500 relative ${node.isStart ? 'bg-emerald-500 z-20 shadow-[0_0_15px_rgba(16,185,129,0.5)]' :
+                    node.isEnd ? 'bg-rose-500 z-20 shadow-[0_0_15px_rgba(244,63,94,0.5)]' :
+                      node.isWall ? 'bg-slate-700' : 'bg-slate-950'
+                    }`}
+                >
+                  {(node.isStart || node.isEnd) && <div className="absolute inset-0 animate-pulse bg-white/20 rounded-full scale-150"></div>}
+                </div>
+              )))}
+            </div>
+          </div>
+          <div className="absolute inset-0 opacity-10 pointer-events-none"
+            style={{ backgroundImage: 'radial-gradient(#4f46e5 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }}>
+          </div>
+        </section>
+      </main>
+      {showError && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
+          <div className="bg-slate-900 border border-rose-500/30 p-8 rounded-2xl shadow-2xl shadow-rose-950/50 max-w-sm w-full text-center">
+            <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2 tracking-tight">No Path Found!</h3>
+            <p className="text-slate-400 text-sm mb-6 leading-relaxed">Target is unreachable or the Machine Learning model hasn't learned the path yet. Try again or reset walls.</p>
+            <button
+              onClick={() => setShowError(false)}
+              className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-rose-900/30"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const StatDisplay = ({ label, value, color }) => (
+  <div className="text-center min-w-17.5">
+    <p className="text-[10px] uppercase text-slate-500 font-black tracking-widest mb-1">{label}</p>
+    <p className={`text-xl font-mono font-bold ${color}`}>{value}</p>
+  </div>
+);
+
+export default App;
