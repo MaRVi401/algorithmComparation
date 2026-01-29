@@ -13,6 +13,7 @@ const App = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState({ title: "", body: "" });
 
   // State UI Progress (Khusus Q-Learning)
   const [progress, setProgress] = useState(0);
@@ -187,12 +188,18 @@ const App = () => {
     } else {
       // --- DIJKSTRA & A* LOGIC ---
       setProgress(0);
+      stopTrainingRef.current = false;
       let visitedCount = 0;
       const startNode = { r: 10, c: 5, g: 0, f: 0, parent: null };
       let openSet = [startNode];
       const visitedSet = new Set();
 
       while (openSet.length > 0) {
+        if (stopTrainingRef.current) {
+          setIsRunning(false);
+          setStats(prev => ({ ...prev, visited: visitedCount }));
+          return;
+        }
         openSet.sort((a, b) => type === 'A*' ? a.f - b.f : a.g - b.g);
         const current = openSet.shift();
         const key = `${current.r}-${current.c}`;
@@ -222,7 +229,12 @@ const App = () => {
           }
         }
       }
+      setStats(prev => ({ ...prev, visited: visitedCount }));
       setIsRunning(false);
+      setErrorMsg({
+        title: "Path Unreachable",
+        body: `The ${type} algorithm has exhausted all possibilities, but no valid path exists. Ensure the target is not completely enclosed by walls.`
+      });
       setShowError(true);
     }
   };
@@ -257,7 +269,12 @@ const App = () => {
       path.push(temp);
       await finishPath(null, workingGrid, startTime, stats.visited, path);
     } else {
+      setStats(prev => ({ ...prev, visited: stats.visited }));
       setIsRunning(false);
+      setErrorMsg({
+        title: "Model Non-Convergent",
+        body: "The agent failed to find a stable policy. This may occur due to complex maze geometry or insufficient training steps for the current environment."
+      });
       setShowError(true);
     }
   };
@@ -349,13 +366,27 @@ const App = () => {
 
           <div className="sidebar-item mt-4 pt-4 border-t border-slate-800">
             <label className="text-[10px] font-black uppercase text-slate-500 mb-3 block tracking-widest">3. Tools</label>
-            <button
-              onClick={clearPathOnly}
-              disabled={isRunning || (stats.visited === 0 && stats.pathLength === 0)}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase border border-slate-700 disabled:opacity-30 transition-all"
-            >
-              Clear Results Only
-            </button>
+            <div className="space-y-3">
+              {isRunning ? (
+                /* Tombol STOP muncul menggantikan Clear saat running */
+                <button
+                  onClick={handleCancel}
+                  className="w-full py-4 bg-rose-600 hover:bg-rose-500 animate-pulse rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-900/20 border-2 border-rose-400/30 transition-all flex flex-col items-center justify-center gap-1"
+                >
+                  <span className="text-white">Stop Process</span>
+                  <span className="text-[8px] opacity-70 normal-case font-medium tracking-normal">Cancel Calculation</span>
+                </button>
+              ) : (
+                /* Tombol CLEAR muncul saat idle */
+                <button
+                  onClick={clearPathOnly}
+                  disabled={stats.visited === 0 && stats.pathLength === 0}
+                  className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase border border-slate-700 disabled:opacity-30 transition-all"
+                >
+                  Clear Results Only
+                </button>
+              )}
+            </div>
           </div>
           <div className="sidebar-item mt-auto p-4 bg-slate-900/50 rounded-lg border border-slate-800">
             <p className="text-[11px] text-slate-400 leading-relaxed italic text-center">
@@ -455,10 +486,39 @@ const App = () => {
             {/* Error Boundary */}
             {showError && (
               <div className="absolute inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
-                <div className="bg-slate-900 border border-rose-500/30 p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-                  <h3 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">No Path Found!</h3>
-                  <p className="text-slate-400 text-sm mb-8 leading-relaxed font-medium">The model failed to find the path, try resetting the wall or rerunning the training.</p>
-                  <button onClick={() => setShowError(false)} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black transition-all shadow-lg shadow-rose-900/30 uppercase tracking-widest text-xs">Close</button>
+                <div className="bg-slate-900 border border-rose-500/30 p-6 rounded-2xl shadow-2xl max-w-[320px] w-full text-center animate-in zoom-in duration-300">
+
+                  {/* Icon Dinamis (Opsional) */}
+                  <div className="text-rose-500 mb-4 flex justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+
+                  <h3 className="text-xl font-black text-white mb-2 tracking-tighter uppercase italic">
+                    {errorMsg.title}
+                  </h3>
+
+                  <p className="text-slate-400 text-[11px] mb-6 leading-relaxed font-medium">
+                    {errorMsg.body}
+                  </p>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => setShowError(false)}
+                      className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all uppercase tracking-widest text-[10px] border border-slate-700"
+                    >
+                      Dismiss
+                    </button>
+
+                    {/* Tombol bantuan cerdas */}
+                    <button
+                      onClick={() => { createInitialGrid(); setShowError(false); }}
+                      className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black transition-all uppercase tracking-widest text-[10px]"
+                    >
+                      Reset Grid & Walls
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
