@@ -452,20 +452,19 @@ const App = () => {
                 </div>
               </div>
             )}
+            {/* Error Boundary */}
+            {showError && (
+              <div className="absolute inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
+                <div className="bg-slate-900 border border-rose-500/30 p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center">
+                  <h3 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">No Path Found!</h3>
+                  <p className="text-slate-400 text-sm mb-8 leading-relaxed font-medium">The model failed to find the path, try resetting the wall or rerunning the training.</p>
+                  <button onClick={() => setShowError(false)} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black transition-all shadow-lg shadow-rose-900/30 uppercase tracking-widest text-xs">Close</button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </main>
-
-      {/* Error Boundary */}
-      {showError && (
-        <div className="absolute inset-0 z-60 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
-          <div className="bg-slate-900 border border-rose-500/30 p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-            <h3 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">No Path Found!</h3>
-            <p className="text-slate-400 text-sm mb-8 leading-relaxed font-medium">Model gagal menemukan jalur. Coba reset dinding atau jalankan ulang training.</p>
-            <button onClick={() => setShowError(false)} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black transition-all shadow-lg shadow-rose-900/30 uppercase tracking-widest text-xs">Close</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
