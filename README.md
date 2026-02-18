@@ -1,5 +1,3 @@
----
-
 # 🚀 Pathfinding Labs: Algorithm Research Visualizer
 
 **Pathfinding Labs** adalah platform visualisasi interaktif untuk mengeksplorasi dan membandingkan efisiensi berbagai algoritma pencarian jalur (*pathfinding*). Proyek ini memadukan algoritma klasik berbasis graf dengan agen cerdas berbasis *Reinforcement Learning* (Q-Learning).
