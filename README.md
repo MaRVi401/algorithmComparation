@@ -1,16 +1,73 @@
-# React + Vite
+---
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# 🚀 Pathfinding Labs: Algorithm Research Visualizer
 
-Currently, two official plugins are available:
+**Pathfinding Labs** adalah platform visualisasi interaktif untuk mengeksplorasi dan membandingkan efisiensi berbagai algoritma pencarian jalur (*pathfinding*). Proyek ini memadukan algoritma klasik berbasis graf dengan agen cerdas berbasis *Reinforcement Learning* (Q-Learning).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Fitur Utama
 
-## React Compiler
+* **Visualisasi Multi-Algoritma**: Bandingkan performa algoritma secara *real-time*:
+* **Dijkstra**: Menjamin jalur terpendek dengan mengeksplorasi semua kemungkinan.
+* **A* (A-Star)**: Algoritma cerdas berbasis heuristik untuk pencarian yang lebih cepat.
+* **Q-Learning (Machine Learning)**: Agen AI yang belajar menemukan jalur melalui ribuan iterasi *trial and error* menggunakan persamaan Bellman.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Expanding the ESLint configuration
+* **Interactive Grid**: Buat rintangan (*walls*) sendiri dengan klik dan geser mouse pada grid berukuran 20x40.
+* **Preset Lingkungan**: Pilihan *grid* kosong, rintangan acak (*random*), atau pola hambatan tertentu (*barrier*).
+* **Analitik Mendalam**: Menampilkan statistik jumlah *state* yang dijelajahi, panjang jalur akhir, dan waktu komputasi dalam milidetik.
+* **Animasi Modern**: Antarmuka responsif dengan animasi halus menggunakan **GSAP**.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack
+
+* **Frontend**: [React 19](https://react.dev/)
+* **Build Tool**: [Vite](https://vitejs.dev/)
+* **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+* **Animation**: [GSAP (GreenSock Animation Platform)](https://greensock.com/gsap/)
+* **State Management**: React Hooks (useState, useEffect, useRef)
+
+## 🚀 Memulai (Local Setup)
+
+1. **Clone repositori**:
+```bash
+git clone https://github.com/username/algorithmcomparation.git
+cd algorithmcomparation
+
+```
+
+
+2. **Instal dependensi**:
+```bash
+npm install
+
+```
+
+
+3. **Jalankan server pengembangan**:
+```bash
+npm run dev
+
+```
+
+
+4. **Build untuk produksi**:
+```bash
+npm run build
+
+```
+
+
+
+## 🧠 Detail Algoritma Machine Learning
+
+Pada mode **Q-Learning**, aplikasi ini menjalankan fase pelatihan intensif sebanyak **5.000 hingga 1.000.000 episode**. Agen menggunakan strategi *Epsilon-Greedy* untuk menyeimbangkan antara eksplorasi area baru dan eksploitasi jalur yang sudah diketahui. Anda dapat memantau proses belajar agen melalui *overlay* progres yang interaktif.
+
+## 📁 Struktur Proyek
+
+* `src/App.jsx`: Logika utama aplikasi, manajemen grid, dan implementasi algoritma.
+* `src/main.jsx`: Entry point aplikasi.
+* `vite.config.js`: Konfigurasi Vite dengan dukungan Tailwind CSS.
+* `eslint.config.js`: Aturan linting untuk menjaga kualitas kode.
+
+---
+
+*Dibuat untuk keperluan penelitian algoritma dan visualisasi data.*
