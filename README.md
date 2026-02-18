@@ -27,7 +27,7 @@
 
 1. **Clone repositori**:
 ```bash
-git clone https://github.com/username/algorithmcomparation.git
+https://github.com/MaRVi401/algorithmComparation
 cd algorithmcomparation
 
 ```
