@@ -1,4 +1,5 @@
 import React from 'react';
+import { ALGORITHMS } from '../constants';
 
 export const Sidebar = ({ createInitialGrid, runAlgorithm, isRunning, handleCancel, clearPathOnly, stats }) => {
     return (
