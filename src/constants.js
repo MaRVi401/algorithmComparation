@@ -8,5 +8,5 @@ export const ALGORITHMS = {
   DIJKSTRA: 'dijkstra',
   ASTAR: 'astar',
   Q_LEARNING: 'qlearning',
-  HYBRID_HAQL: 'hybrid_haql'
+  HYBRID: 'hybrid'
 };

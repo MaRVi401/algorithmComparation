@@ -12,15 +12,12 @@ import { ErrorModal } from './components/ErrorModal';
 
 const App = () => {
   const containerRef = useRef();
-  
-  // Destructure semua yang dibutuhkan dari custom hook
   const {
     grid, setGrid, stats, isRunning, setIsRunning, isMouseDown, setIsMouseDown, 
     showError, setShowError, errorMsg, progress, setProgress, isTrainingComplete, 
     trainingData, createInitialGrid, clearPathOnly, handleCancel, runAlgorithm, handleVisualizeML
   } = usePathfinding();
 
-  // GSAP Initial Animation
   useGSAP(() => {
     gsap.from(".sidebar-item", { x: -30, opacity: 0, stagger: 0.1, duration: 0.8, ease: "power3.out" });
     gsap.from(".grid-container", { scale: 0.95, opacity: 0, duration: 1, ease: "expo.out" });

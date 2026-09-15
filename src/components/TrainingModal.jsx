@@ -1,8 +1,11 @@
 import React from 'react';
-import { TOTAL_EPISODES } from '../constants';
+import { TOTAL_EPISODES, HYBRID_EPISODES } from "../constants";
 
 export const TrainingModal = ({ isRunning, progress, trainingData, isTrainingComplete, handleVisualizeML, setIsRunning, setProgress, handleCancel }) => {
   if (!isRunning || progress <= 0) return null;
+
+  // Hitung max episode secara dinamis berdasarkan episode pelatihan saat ini
+  const maxEpisodes = trainingData.episode <= HYBRID_EPISODES ? HYBRID_EPISODES : TOTAL_EPISODES;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md px-4">
@@ -10,7 +13,10 @@ export const TrainingModal = ({ isRunning, progress, trainingData, isTrainingCom
         <div className="flex justify-between items-end mb-4 md:mb-6 text-left">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-white italic tracking-tight uppercase">Training <span className="text-purple-500">Model...</span></h2>
-            <p className="text-[8px] md:text-[10px] text-slate-500 uppercase tracking-widest mt-1">Episode {trainingData.episode.toLocaleString()} / {TOTAL_EPISODES.toLocaleString()}</p>
+            {/* Menggunakan variabel maxEpisodes dinamis */}
+            <p className="text-[8px] md:text-[10px] text-slate-500 uppercase tracking-widest mt-1">
+              Episode {trainingData.episode.toLocaleString()} / {maxEpisodes.toLocaleString()}
+            </p>
           </div>
           <div className="text-2xl md:text-3xl font-mono font-black text-purple-400">{progress}%</div>
         </div>
