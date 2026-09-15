@@ -96,10 +96,10 @@ export const Sidebar = ({
           )}
         </div>
       </div>
-      <div className="sidebar-item mt-auto pt-4 hidden md:block">
+      <div className="sidebar-item pt-8 hidden md:block">
         <p className="text-[11px] text-slate-400 leading-relaxed italic text-center">
-          "Hybrid Method combines A* Manhattan Heuristics with Q-Learning to
-          accelerate training convergence."
+          "Simulates Dijkstra (uninformed), A* (heuristic), Q-Learning (RL), and
+          Hybrid (A* + Q-Learning) for optimal web pathfinding."
         </p>
       </div>
     </aside>
